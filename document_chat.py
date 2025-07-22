@@ -124,3 +124,29 @@ if __name__ == "__main__":
                 st.session_state.vs = vector_store
                 st.success('File uploaded, chunked and embedded successfully.')
 
+    # user's question text input widget
+    q = st.text_input('Ask a question about the content of your file:')
+    if q: # if the user entered a question and hit enter
+        if 'vs' in st.session_state: # if there's the vector store (user uploaded, split and embedded a file)
+            vector_store = st.session_state.vs
+            st.write(f'k: {k}')
+            answer = ask_and_get_answer(vector_store, q, k)
+
+            # text area widget for the LLM answer
+            st.text_area('LLM Answer: ', value=answer)
+
+            st.divider()
+
+            # if there's no chat history in the session state, create it
+            if 'history' not in st.session_state:
+                st.session_state.history = ''
+
+            # the current question and answer
+            # the current question and answer
+            value = f'Q: {q} \nA: {answer}'
+
+            st.session_state.history = f'{value} \n {"-" * 100} \n {st.session_state.history}'
+            h = st.session_state.history
+
+            # text area widget for the chat history
+            st.text_area(label='Chat History', value=h, key='history', height=400)
