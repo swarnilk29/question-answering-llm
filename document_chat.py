@@ -56,3 +56,71 @@ def ask_and_get_answer(vector_store, q, k=3):
     answer = chain.invoke(q)
     return answer['result']
 
+
+# calculate embedding cost using tiktoken
+def calculate_embedding_cost(texts):
+    import tiktoken
+    enc = tiktoken.encoding_for_model('text-embedding-3-small')
+    total_tokens = sum([len(enc.encode(page.page_content)) for page in texts])
+    # check prices here: https://openai.com/pricing
+    # print(f'Total Tokens: {total_tokens}')
+    # print(f'Embedding Cost in USD: {total_tokens / 1000 * 0.00002:.6f}')
+    return total_tokens, total_tokens / 1000 * 0.00002
+
+
+# clear the chat history from streamlit session state
+def clear_history():
+    if 'history' in st.session_state:
+        del st.session_state['history']
+
+
+if __name__ == "__main__":
+    import os
+
+    # loading the OpenAI api key from .env
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(), override=True)
+
+    st.image('image.png')
+    st.subheader('LLM Question-Answering Application 🤖')
+    with st.sidebar:
+        # text_input for the OpenAI API key (alternative to python-dotenv and .env)
+        api_key = st.text_input('OpenAI API Key:', type='password')
+        if api_key:
+            os.environ['OPENAI_API_KEY'] = api_key
+
+        # file uploader widget
+        uploaded_file = st.file_uploader('Upload a file:', type=['pdf', 'docx', 'txt'])
+
+        # chunk size number widget
+        chunk_size = st.number_input('Chunk size:', min_value=100, max_value=2048, value=512, on_change=clear_history)
+
+        # k number input widget
+        k = st.number_input('k', min_value=1, max_value=20, value=3, on_change=clear_history)
+
+        # add data button widget
+        add_data = st.button('Add Data', on_click=clear_history)
+
+        if uploaded_file and add_data: # if the user browsed a file
+            with st.spinner('Reading, chunking and embedding file ...'):
+
+                # writing the file from RAM to the current directory on disk
+                bytes_data = uploaded_file.read()
+                file_name = os.path.join('./', uploaded_file.name)
+                with open(file_name, 'wb') as f:
+                    f.write(bytes_data)
+
+                data = load_document(file_name)
+                chunks = chunk_data(data, chunk_size=chunk_size)
+                st.write(f'Chunk size: {chunk_size}, Chunks: {len(chunks)}')
+
+                tokens, embedding_cost = calculate_embedding_cost(chunks)
+                st.write(f'Embedding cost: ${embedding_cost:.4f}')
+
+                # creating the embeddings and returning the Chroma vector store
+                vector_store = create_embeddings(chunks)
+
+                # saving the vector store in the streamlit session state (to be persistent between reruns)
+                st.session_state.vs = vector_store
+                st.success('File uploaded, chunked and embedded successfully.')
+
